@@ -27,6 +27,16 @@ struct App {
     win_frame_delay: u8,
     invalid_word_flag: bool,
     invalid_word_frame_delay: u8,
+    game_over_flag: bool,
+    game_over_frame_delay: u8,
+}
+
+impl App {
+    fn reset_current_attempt(& self) -> App {
+        let mut new_app = init();
+        new_app.current_word = self.current_word.clone();
+        new_app
+    }
 }
 
 struct GameBoard {
@@ -75,8 +85,8 @@ fn init() -> App {
     }
 
     App {
-        // current_word: get_random_word(),
-        current_word: get_debug_word(),
+        current_word: get_random_word(),
+        // current_word: get_debug_word(),
         game_board,
         remaining_attempts: 6,
         current_attempt: 0,
@@ -84,6 +94,8 @@ fn init() -> App {
         win_frame_delay: 0,
         invalid_word_flag: false,
         invalid_word_frame_delay: 0,
+        game_over_flag: false,
+        game_over_frame_delay: 0,
     }
 }
 
@@ -198,6 +210,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
 
+                if app.game_over_flag {
+                    if app.game_over_frame_delay <= 3 {
+                        app.game_over_frame_delay += 1;
+                    } else if app.game_over_frame_delay > 3 && app.game_over_frame_delay <= 6 {
+                        app.game_over_frame_delay += 1;
+
+                        let [horizontal_center] = Layout::horizontal([Constraint::Length(POPUP_WIDTH)])
+                            .flex(Flex::Center)
+                            .areas(full_board);
+                        let [vertical_center] = Layout::vertical([Constraint::Length(POPUP_HEIGHT)])
+                            .flex(Flex::Center)
+                            .areas(horizontal_center);
+                        let popup = Paragraph::new("Game Over")
+                            .style(Style::default().fg(Color::Black).bg(Color::Red))
+                            .block(Block::default().borders(Borders::ALL).border_type(BorderType::Double))
+                            .alignment(Alignment::Center);
+                        frame.render_widget(Clear, vertical_center);
+                        frame.render_widget(popup, vertical_center);
+                    } else {
+                        sleep(std::time::Duration::from_secs(2));
+                        app = app.reset_current_attempt();
+                    }
+                }
+
                 if app.invalid_word_flag {
                     if app.invalid_word_frame_delay <= 3 {
                         app.invalid_word_frame_delay += 1;
@@ -293,6 +329,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                             if app.game_board.current_row < 5 {
                                 app.game_board.current_row += 1;
+                            }else if app.game_board.current_row == 5 && !app.win_flag {
+                                app.game_over_flag = true;
+                                app.game_over_frame_delay = 4; // Skip the initial delay frames
                             }
                         } else {
                             // Set the invalid word flags
@@ -324,33 +363,4 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     terminal.show_cursor()?;
 
     Ok(())
-}
-
-fn reset_game(app: &mut App) {
-    app.current_word = "AUDIO".to_string(); // Change this to a new random word
-    app.remaining_attempts = 6;
-    app.current_attempt = 0;
-    app.game_board = GameBoard {
-        current_row: 0,
-        rows: Vec::new(),
-    };
-
-    for _ in 0..6 {
-        let mut row = GameRow {
-            current_block: 0,
-            blocks: Vec::with_capacity(5),
-        };
-
-        for _ in 0..5 {
-            row.blocks.push(GameBlock {
-                current_letter: ' ',
-                state: BlockState {
-                    bg_color: Color::Red,
-                    fg_color: Color::White,
-                },
-            });
-        }
-
-        app.game_board.rows.push(row);
-    }
 }
